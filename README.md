@@ -18,6 +18,11 @@ python3 -m http.server 8765
 
 ## 자동 배포
 
+- 공개 주소: https://junova-foley-mvp.vercel.app
+- 연결 저장소: https://github.com/parkjuno1980-alt/junova-foley-mvp
+- Vercel 프로젝트: JUNOVA / junova-foley-mvp
+- 운영 브랜치: main
+
 Vercel의 GitHub 연결을 통해 `main`에 push하면 자동 배포합니다. Vercel은 index.html만 공개 출력 폴더에 복사하며 Supabase CLI 개발 의존성은 설치하지 않습니다.
 
 ```sh
