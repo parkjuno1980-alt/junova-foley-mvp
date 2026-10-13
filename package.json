@@ -1,0 +1,12 @@
+{
+  "name": "junova-foley-lab",
+  "version": "0.1.0",
+  "private": true,
+  "description": "JUNOVA Foley MVP; Supabase CLI is a local development tool",
+  "allowScripts": {
+    "supabase": true
+  },
+  "devDependencies": {
+    "supabase": "^2.120.0"
+  }
+}
