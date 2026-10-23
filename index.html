@@ -29,6 +29,16 @@ body{background:#09090a;color:#f5f5f6}.shell{max-width:1280px;padding:0 48px}hea
 <div class="flow"><div class="flow-card"><span class="num">01 /</span><div><h3>기존 작업을 가져오세요</h3><p>AAF와 당시 영상에서 사용한 소리를 찾습니다.</p></div></div><div class="flow-card"><span class="num">02 /</span><div><h3>새 장면에 다시 붙입니다</h3><p>발 움직임과 녹음의 시작점을 분석해 배치합니다.</p></div></div><div class="flow-card"><span class="num">03 /</span><div><h3>Pro Tools에서 마무리하세요</h3><p>클립이 살아 있는 AAF로 받아 다듬습니다.</p></div></div></div>
 </section>
 <section id="work" class="page" hidden>
+<div class="engine-connect">
+<span id="engine-status" role="status">브라우저 모드 · 서버 확인 중</span>
+<details><summary>엔진 연결 설정</summary><p class="helper">엔진 서버가 제공하는 웹 주소에서 열어주세요. 토큰은 이 탭에서만 사용하며 저장하지 않아요.</p><label class="field">연결 토큰 <span class="opt">서버에서 설정한 경우</span><input id="engine-token" type="password" autocomplete="off" placeholder="연결 토큰"></label><button id="engine-connect" type="button" class="secondary">연결 확인</button><label class="field">작업 방식<select id="engine-mode"><option value="browser">브라우저에서 짧은 발소리 분석</option><option value="server" disabled>맥스튜디오 엔진으로 작업</option></select></label></details>
+</div>
+<div id="engine-settings" class="panel" hidden>
+<h2>엔진 작업 설정</h2><p id="engine-notice" class="helper"></p>
+<div class="settings"><label class="field">작업 이름<input id="engine-title" value="폴리 초안" maxlength="120"></label><label class="field">세션 → 영상 차이 (프레임)<input id="engine-offset" type="number" value="2880" step="1"></label><label class="field">후보 트랙<select id="engine-candidates"><option value="muted">넣고 소리 꺼 두기 (−144 dB)</option><option value="off">넣지 않기</option></select></label></div>
+<div class="engine-checks"><label><input id="engine-foot" type="checkbox" checked> 발소리</label><label><input id="engine-move" type="checkbox" checked> 무브</label><label><input id="engine-spot" type="checkbox" checked> 스팟</label><label><input id="engine-review" type="checkbox"> 인물·신발표 확인</label></div>
+<details><summary>맥스튜디오 경로로 등록하기 · 큰 파일용</summary><p class="helper">아래 경로를 입력하면 해당 종류의 파일 선택 대신 사용합니다. 경로는 서버가 실행 중인 맥스튜디오 기준이에요.</p><div class="settings"><label class="field">새 영상 경로<input id="engine-path-video" placeholder="/Volumes/…/새영상.mp4"></label><label class="field">기존 AAF 경로 · 선택<input id="engine-path-aaf" placeholder="/Volumes/…/기존작업.aaf"></label><label class="field">오디오 폴더 경로 · 선택<input id="engine-path-audio" placeholder="/Volumes/…/audio"></label><label class="field">기존 영상 경로 · 선택<input id="engine-path-ref_video" placeholder="/Volumes/…/기존영상.mp4"></label></div></details>
+</div>
 <div class="section-head"><div><div class="eyebrow">YOUR FOLEY WORKSPACE</div><h1>이번 컷의 폴리, 기존 작업으로.</h1><p>작업했던 영상과 AAF를 넣고, 새 영상의 발소리 초안을 만들어보세요.</p></div><span class="badge">FOOTSTEPS · LOCAL PROCESSING</span></div>
 <div class="work-grid"><div class="panel"><div class="panel-head"><h2>작업 자료 가져오기</h2><span class="label-mini">01 / INPUT</span></div>
 <label class="file-row"><span class="file-icon">AAF</span><span class="file-copy"><strong>기존 작업 AAF</strong><span id="aaf-name">전에 작업한 폴리 AAF를 넣어주세요.</span></span><span class="file-plus">＋</span><input id="aaf-file" type="file" accept=".aaf" aria-label="기존 작업 AAF"></label>
@@ -219,7 +229,7 @@ function error(where,msg){$(where).textContent=msg;$(where).hidden=!msg;}
 function setProgress(step,pct,title,detail=''){ $('empty').hidden=true;$('result').hidden=true;$('progress').hidden=false;$('status-title').textContent=title;$('status-detail').textContent=detail;$('progress-fill').style.width=pct+'%';for(let i=0;i<4;i++)$('stage-'+i).classList.toggle('done',i<step);}
 function busy(value){state.busy=value;['run-btn','inspect-btn','demo-btn','audio-folder-btn','audio-files-btn','audio-clear-btn'].forEach(id=>$(id).disabled=value);document.querySelectorAll('#work input,#work select').forEach(el=>el.disabled=value);}
 function trackChanged(){resetResult();}
-function resetResult(){stopAudio();$('preview').pause();$('result').hidden=true;$('empty').hidden=false;state.samples=[];state.clips=[];state.mode='real';error('export-error','');}
+function resetResult(){stopAudio();$('preview').pause();$('result').hidden=true;$('empty').hidden=false;if($('engine-output'))$('engine-output').hidden=true;state.samples=[];state.clips=[];state.mode='real';error('export-error','');}
 const files=[['aaf-file','aaf-name'],['old-file','old-name'],['new-file','new-name']];
 for(const [id,label] of files){$(id).addEventListener('change',()=>{const ff=[...$(id).files];$(label).textContent=ff.length?ff.length===1?ff[0].name:`${ff.length}개 파일 선택됨`:({ 'aaf-file':'전에 작업한 폴리 AAF를 넣어주세요.','audio-files':'AAF에 오디오가 포함돼 있으면 생략할 수 있어요.','old-file':'그 폴리를 작업할 때 봤던 영상을 넣어주세요.','new-file':'발이 보이는 짧은 걷기 장면부터 시작해보세요.'}[id]);$(label).classList.toggle('file-name',!!ff.length);resetResult();if(id==='aaf-file'){state.index=null;$('index-info').hidden=true;$('track-field').hidden=true;}if(id==='new-file'&&ff[0])readMP4Metadata(ff[0]).catch(()=>{});});const row=$(id).closest('.file-row');row.addEventListener('dragover',e=>{e.preventDefault();row.classList.add('drag');});row.addEventListener('dragleave',()=>row.classList.remove('drag'));row.addEventListener('drop',e=>{e.preventDefault();row.classList.remove('drag');if(state.busy)return;const data=new DataTransfer();[...e.dataTransfer.files].slice(0,$(id).multiple?undefined:1).forEach(f=>data.items.add(f));$(id).files=data.files;$(id).dispatchEvent(new Event('change'));});}
 const audioExtension = /\.(wav|wave|aif|aiff|mp3|m4a|flac)$/i;
@@ -308,6 +318,95 @@ $('demo-btn').onclick=async()=>{if(state.busy)return;busy(true);resetResult();er
 // Read MP4 video-track rate from timing boxes; unavailable metadata remains user-confirmed.
 async function readMP4Metadata(file){if(!/\.(mp4|mov)$/i.test(file.name))return;let offset=0,moov=null;while(offset+8<file.size){const head=new DataView(await file.slice(offset,offset+16).arrayBuffer());let size=head.getUint32(0);const type=String.fromCharCode(...new Uint8Array(head.buffer,4,4));let header=8;if(size===1){size=Number(head.getBigUint64(8));header=16;}if(!size)size=file.size-offset;if(size<header||offset+size>file.size)break;if(type==='moov'){if(size>15e6)return;moov=new Uint8Array(await file.slice(offset+header,offset+size).arrayBuffer());break;}offset+=size;}if(!moov)return;function boxes(bytes){const out=[];let o=0;while(o+8<=bytes.length){const v=new DataView(bytes.buffer,bytes.byteOffset+o);const n=v.getUint32(0);if(n<8||o+n>bytes.length)break;out.push({type:String.fromCharCode(...bytes.slice(o+4,o+8)),data:bytes.subarray(o+8,o+n)});o+=n;}return out;}for(const trak of boxes(moov).filter(x=>x.type==='trak')){const mdia=boxes(trak.data).find(x=>x.type==='mdia');if(!mdia)continue;const sub=boxes(mdia.data),handler=sub.find(x=>x.type==='hdlr');if(!handler||String.fromCharCode(...handler.data.slice(8,12))!=='vide')continue;const mdhd=sub.find(x=>x.type==='mdhd'),minf=sub.find(x=>x.type==='minf');if(!mdhd||!minf)continue;const d=new DataView(mdhd.data.buffer,mdhd.data.byteOffset);const timescale=d.getUint32(mdhd.data[0]===1?20:12);const stbl=boxes(minf.data).find(x=>x.type==='stbl');if(!stbl)continue;const stts=boxes(stbl.data).find(x=>x.type==='stts');if(!stts)continue;const v=new DataView(stts.data.buffer,stts.data.byteOffset);const entries=v.getUint32(4);if(entries!==1)continue;const delta=v.getUint32(12),fps=timescale/delta;const choices=[...$('fps').options].filter(x=>x.value!=='29.97DF');const best=choices.reduce((a,b)=>Math.abs(Number(evalRate(a.value))-fps)<Math.abs(Number(evalRate(b.value))-fps)?a:b);if(Math.abs(evalRate(best.value)-fps)<.05)$('fps').value=best.value;}}
 function evalRate(s){return s.includes('/')?s.split('/').map(Number).reduce((a,b)=>a/b):Number(s);}
+// Optional local engine client. Secrets stay in memory; no token in HTML or storage.
+const engine={available:false,mock:false,job:null,token:'',uploads:new Set(),canceling:false};
+const enginePanel=document.createElement('div');enginePanel.id='engine-output';enginePanel.hidden=true;
+$('result').before(enginePanel);
+const style=document.createElement('style');style.textContent=`.engine-connect{border:1px solid var(--line,#303037);padding:16px;margin-bottom:18px;border-radius:6px}.engine-connect>span{font-size:13px;color:#cdbd9e}.engine-connect details{margin-top:10px}.engine-checks{display:flex;gap:18px;flex-wrap:wrap;margin:14px 0}.engine-checks label{font-size:13px;display:flex;align-items:center;gap:7px}.engine-checks input{width:auto!important}#engine-settings{margin-bottom:20px}#engine-output{margin-top:20px}#engine-output button{margin:6px 8px 6px 0}#engine-output .review-person{display:grid;grid-template-columns:1fr 1fr;gap:10px;border-top:1px solid #303037;padding:12px 0}.engine-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:18px 0}.engine-summary strong{display:block;font-size:24px;color:#f5f5f6}.engine-summary span{font-size:12px;color:#aaa}#engine-status,#engine-output p{overflow-wrap:anywhere;word-break:keep-all}#engine-settings input{min-width:0}#engine-settings .settings{grid-template-columns:repeat(2,minmax(0,1fr))}@media(max-width:600px){#engine-settings .settings{grid-template-columns:1fr}.engine-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}`;document.head.append(style);
+function isServerMode(){return engine.available&&$('engine-mode').value==='server';}
+function engineModeChanged(){
+  $('engine-settings').hidden=!isServerMode();enginePanel.hidden=true;
+  $('work').querySelector('.badge').textContent=isServerMode()?(engine.mock?'SERVER · CONNECTION TEST':'MAC STUDIO · ENGINE'):'FOOTSTEPS · LOCAL PROCESSING';
+  $('work').querySelector('.subnote span:last-child').textContent=isServerMode()?'실행하면 선택한 자료를 엔진 서버로 전송합니다. 맥스튜디오 경로로 등록하면 파일을 다시 올리지 않아요.':'영상과 오디오는 브라우저 안에서 처리합니다. 최초 실행에는 분석 도구 다운로드를 위한 인터넷 연결이 필요해요.';
+  $('run-btn').nextElementSibling.textContent=isServerMode()?'새 영상은 필수입니다. 기존 AAF·오디오·기존 영상은 선택해서 함께 보낼 수 있어요.':'첫 버전은 한 사람의 발소리를 분석합니다. 발이 가려진 장면이나 복잡한 편집은 검출이 어려울 수 있어요.';
+}
+async function api(path,{method='GET',body,signal}={}){
+  const headers={};if(engine.token)headers.Authorization='Bearer '+engine.token;if(body)headers['Content-Type']='application/json';
+  const r=await fetch('/api'+path,{method,headers,body:body?JSON.stringify(body):undefined,signal,credentials:'omit'});
+  const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error?.message||'엔진 서버 응답을 확인해주세요.');return data;
+}
+async function checkEngine(auto=false){
+  if(state.busy)return;
+  engine.token=$('engine-token').value.trim();
+  try{const health=await api('/health',{signal:AbortSignal.timeout(4000)});if(!health.ok||!health.engine)throw new Error('엔진 응답 형식을 확인해주세요.');engine.available=true;engine.mock=!!health.engine.mock;
+    $('engine-status').textContent=engine.mock?'엔진 서버 연결됨 · 연결 테스트용 엔진':'엔진 서버 연결됨 · 외부 엔진';
+    $('engine-notice').textContent=engine.mock?'연결 테스트용입니다. 영상을 분석하지 않고 합성 클릭 AAF를 만듭니다.':'맥스튜디오에서 영상을 분석하고, 오디오가 포함된 멀티트랙 AAF를 만듭니다.';
+    $('engine-mode').querySelector('[value=server]').disabled=false;if(auto)$('engine-mode').value='server';
+  }catch(e){engine.available=false;$('engine-mode').value='browser';$('engine-mode').querySelector('[value=server]').disabled=true;$('engine-status').textContent=auto?'브라우저 모드 · 엔진 서버 미연결':e.message;}
+  engineModeChanged();
+}
+$('engine-connect').onclick=()=>checkEngine(true);$('engine-mode').onchange=engineModeChanged;
+function engineProgress(pct,message,detail=''){
+  setProgress(0,pct,message,detail);document.querySelectorAll('#progress .stage').forEach(el=>el.hidden=true);
+}
+function uploadToEngine(jid,kind,file,path,index,total){return new Promise((resolve,reject)=>{
+  const xhr=new XMLHttpRequest();engine.uploads.add(xhr);xhr.open('POST',`/api/jobs/${jid}/files`);if(engine.token)xhr.setRequestHeader('Authorization','Bearer '+engine.token);
+  xhr.upload.onprogress=e=>{engineProgress(0,`자료를 올리고 있어요 · ${index}/${total}`,`${file.name} · ${e.lengthComputable?Math.round(e.loaded/e.total*100)+'%':Math.round(e.loaded/1024/1024)+' MB'}`);};
+  xhr.onload=()=>{engine.uploads.delete(xhr);let data;try{data=JSON.parse(xhr.responseText);}catch{}if(xhr.status>=200&&xhr.status<300)resolve(data);else reject(new Error(data?.error?.message||'파일을 올리지 못했어요. 다시 시도해주세요.'));};
+  xhr.onerror=()=>{engine.uploads.delete(xhr);reject(new Error('업로드 연결이 끊겼어요. 엔진 서버를 확인해주세요.'));};xhr.onabort=()=>{engine.uploads.delete(xhr);reject(new Error('작업을 취소했어요.'));};
+  const form=new FormData();form.append('kind',kind);form.append('relpath',path);form.append('file',file);xhr.send(form);
+});}
+function outputMessage(title,text){enginePanel.replaceChildren();const h=document.createElement('h3'),p=document.createElement('p');h.textContent=title;p.textContent=text;enginePanel.append(h,p);enginePanel.hidden=false;}
+function engineButton(label,fn){const b=document.createElement('button');b.type='button';b.className='secondary';b.textContent=label;b.onclick=fn;enginePanel.append(b);return b;}
+async function cancelEngine(){if(engine.canceling)return;engine.canceling=true;engine.uploads.forEach(x=>x.abort());if(engine.job)try{await api(`/jobs/${engine.job}/cancel`,{method:'POST'});}catch(e){error('input-error',e.message+' 서버에서 작업이 멈췄는지 확인해주세요.');}}
+async function reviewPeople(jid){
+  const people=await api(`/jobs/${jid}/review/people`);outputMessage('인물·신발표 확인','신발과 제외할 인물을 확인한 뒤 진행해주세요.');
+  const rows=[];for(const person of people){const row=document.createElement('div');row.className='review-person';const name=document.createElement('span');name.textContent=person.track_id;
+    const shoeLabel=document.createElement('label');shoeLabel.className='field';shoeLabel.textContent='신발';const shoe=document.createElement('input');shoe.value=person.shoe||'';shoe.maxLength=120;shoeLabel.append(shoe);
+    const weightLabel=document.createElement('label');weightLabel.className='field';weightLabel.textContent='가중치';const weight=document.createElement('input');weight.type='number';weight.min='0';weight.max='10';weight.step='.1';weight.value=person.weight??1;weightLabel.append(weight);
+    const excludeLabel=document.createElement('label');excludeLabel.textContent='이 인물 제외 ';const exclude=document.createElement('input');exclude.type='checkbox';exclude.checked=!!person.exclude;excludeLabel.append(exclude);row.append(name,shoeLabel,weightLabel,excludeLabel);enginePanel.append(row);rows.push({person,shoe,weight,exclude});}
+  engineButton('이대로 진행',async e=>{const b=e.currentTarget;b.disabled=true;try{await api(`/jobs/${jid}/review/people`,{method:'PUT',body:rows.map(r=>({track_id:r.person.track_id,shoe:r.shoe.value,weight:Number(r.weight.value),exclude:r.exclude.checked}))});outputMessage('확인 내용을 보냈어요.','엔진이 작업을 이어가면 진행 상태가 바뀝니다.');}catch(e){error('input-error',e.message);b.disabled=false;}});
+  engineButton('작업 취소',cancelEngine);
+}
+async function showEngineResult(jid){
+  const result=await api(`/jobs/${jid}/result`);$('progress').hidden=true;$('empty').hidden=true;$('result').hidden=true;
+  outputMessage(engine.mock?'연결 테스트가 끝났어요.':'폴리 초안이 준비됐어요.',engine.mock?'합성 클릭으로 만든 테스트 AAF입니다. 실제 영상 분석 결과가 아닙니다.':'오디오가 포함된 AAF를 받아 Pro Tools에서 이어서 편집하세요. 영상 미리보기와 클립 수정은 Pro Tools에서 확인해주세요.');
+  const stats=document.createElement('div');stats.className='engine-summary';for(const [key,label] of [['foot_steps','발소리'],['foot_candidates','발소리 후보'],['move_clips','무브'],['spots','스팟']]){const el=document.createElement('div'),n=document.createElement('strong'),l=document.createElement('span');n.textContent=(result.summary?.[key]??0).toLocaleString();l.textContent=label;el.append(n,l);stats.append(el);}enginePanel.append(stats);
+  for(const file of result.files){engineButton(file.kind==='aaf'?'멀티트랙 AAF 받기 ↓':file.name+' ↓',async e=>{const b=e.currentTarget;b.disabled=true;try{
+      const name=file.kind==='aaf'?'aaf':file.name;const ticket=await api(`/jobs/${jid}/download/${encodeURIComponent(name)}`,{method:'POST'});const url=new URL(ticket.url,location.origin);if(url.origin!==location.origin)throw new Error('다운로드 주소를 확인해주세요.');
+      const a=document.createElement('a');a.href=url.href;a.download=file.name;a.referrerPolicy='no-referrer';document.body.append(a);a.click();a.remove();
+    }catch(e){error('input-error',e.message);}finally{b.disabled=false;}});}
+}
+const browserRun=$('run-btn').onclick;
+$('run-btn').onclick=async()=>{
+  if(!isServerMode()){document.querySelectorAll('#progress .stage').forEach(el=>el.hidden=false);enginePanel.hidden=true;return browserRun();}
+  if(state.busy)return;error('input-error','');engine.canceling=false;engine.job=null;
+  const paths=Object.fromEntries(['video','aaf','audio','ref_video'].map(k=>[k,$('engine-path-'+k).value.trim()]));
+  if(!paths.video&&!$('new-file').files[0]){error('input-error','새 영상을 선택하거나 맥스튜디오의 영상 경로를 입력해주세요.');return;}
+  try{parseTimecode();}catch(e){error('input-error',e.message);return;}
+  resetResult();busy(true);$('engine-connect').disabled=true;engineProgress(0,'엔진 작업을 만들고 있어요.');
+  try{
+    const job=await api('/jobs',{method:'POST',body:{title:$('engine-title').value.trim()||'폴리 초안',fps:evalRate($('fps').value==='29.97DF'?'30000/1001':$('fps').value),start_tc:$('new-tc').value,session_to_video_offset_frames:Number($('engine-offset').value),options:{foot:$('engine-foot').checked,move:$('engine-move').checked,spot:$('engine-spot').checked,candidate_tracks:$('engine-candidates').value,people_review:$('engine-review').checked}}});engine.job=job.job_id;
+    outputMessage('엔진 작업 중','자료를 올린 뒤 맥스튜디오에서 차례로 처리합니다.');engineButton('작업 취소',cancelEngine);
+    const uploads=[];for(const [kind,input] of [['video','new-file'],['aaf','aaf-file'],['ref_video','old-file']])if(!paths[kind]&&$(input).files[0])uploads.push([kind,$(input).files[0],$(input).files[0].name]);
+    if(!paths.audio)for(const item of state.audioFiles.values())uploads.push(['audio',item.file,item.path]);
+    for(const [kind,path] of Object.entries(paths)){if(engine.canceling)throw new Error('작업을 취소했어요.');if(path)await api(`/jobs/${job.job_id}/files/link`,{method:'POST',body:{kind,path}});}
+    for(let i=0;i<uploads.length;i++){if(engine.canceling)throw new Error('작업을 취소했어요.');await uploadToEngine(job.job_id,...uploads[i],i+1,uploads.length);}
+    if(engine.canceling)throw new Error('작업을 취소했어요.');await api(`/jobs/${job.job_id}/start`,{method:'POST'});
+    let reviewShown=false;
+    while(true){const status=await api(`/jobs/${job.job_id}`,{signal:AbortSignal.timeout(10000)});engineProgress(status.percent,status.message,`${status.stage_index}/7 · ${(status.warnings||[]).join(' · ')}`);
+      if(status.status==='done'){await showEngineResult(job.job_id);break;}
+      if(status.status==='failed'||status.status==='canceled')throw new Error(status.error||status.message);
+      if(status.status==='needs_review'&&!reviewShown){await reviewPeople(job.job_id);reviewShown=true;}
+      if(status.status!=='needs_review')reviewShown=false;
+      await sleep(2000);
+    }
+  }catch(e){$('progress').hidden=true;outputMessage('작업 상태를 확인해주세요.',e.message||'서버 연결을 확인해주세요.');error('input-error',e.message||'서버 연결을 확인해주세요.');if(engine.job)engineButton('서버 작업 취소',cancelEngine);}
+  finally{busy(false);$('engine-connect').disabled=false;}
+};
+const originalDemo=$('demo-btn').onclick;$('demo-btn').onclick=()=>{enginePanel.hidden=true;return originalDemo();};
+$('engine-token').addEventListener('keydown',e=>{if(e.key==='Enter')checkEngine(true);});
+checkEngine(true);
 window.foleyLab={state,inspect,exportAAF,parseTimecode,onsets,buildCandidates,detectSteps,python,wav24};
 </script>
 </body>

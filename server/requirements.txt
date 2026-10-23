@@ -1,0 +1,7 @@
+fastapi==0.161.1
+starlette==1.9.0
+uvicorn==0.54.0
+python-multipart==0.0.32
+pyaaf2==1.7.1
+httpx==0.28.1
+pytest==9.1.1

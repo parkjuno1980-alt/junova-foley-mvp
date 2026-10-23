@@ -20,3 +20,7 @@ test/
 *.log
 public/
 진행기록.md
+.venv/
+__pycache__/
+.pytest_cache/
+JUNOVA_jobs/
