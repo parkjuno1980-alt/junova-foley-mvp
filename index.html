@@ -37,6 +37,7 @@ body{background:#09090a;color:#f5f5f6}.shell{max-width:1280px;padding:0 48px}hea
 <h2>엔진 작업 설정</h2><p id="engine-notice" class="helper"></p>
 <div class="settings"><label class="field">작업 이름<input id="engine-title" value="폴리 초안" maxlength="120"></label><label class="field">세션 → 영상 차이 (프레임)<input id="engine-offset" type="number" value="2880" step="1"></label><label class="field">후보 트랙<select id="engine-candidates"><option value="muted">넣고 소리 꺼 두기 (−144 dB)</option><option value="off">넣지 않기</option></select></label></div>
 <div class="engine-checks"><label><input id="engine-foot" type="checkbox" checked> 발소리</label><label><input id="engine-move" type="checkbox" checked> 무브</label><label><input id="engine-spot" type="checkbox" checked> 스팟</label><label><input id="engine-review" type="checkbox"> 인물·신발표 확인</label></div>
+<details id="engine-jobs-box"><summary>지난 작업</summary><p class="helper">맥스튜디오에서 실행한 작업이에요. 브라우저를 닫았다가 다시 열어도 여기서 이어서 보고 결과를 받을 수 있어요.</p><button id="engine-jobs-refresh" type="button" class="secondary">목록 새로고침</button><div id="engine-jobs" class="engine-jobs" aria-live="polite"></div></details>
 <details><summary>맥스튜디오 경로로 등록하기 · 큰 파일용</summary><p class="helper">아래 경로를 입력하면 해당 종류의 파일 선택 대신 사용합니다. 경로는 서버가 실행 중인 맥스튜디오 기준이에요.</p><div class="settings"><label class="field">새 영상 경로<input id="engine-path-video" placeholder="/Volumes/…/새영상.mp4"></label><label class="field">기존 AAF 경로 · 선택<input id="engine-path-aaf" placeholder="/Volumes/…/기존작업.aaf"></label><label class="field">오디오 폴더 경로 · 선택<input id="engine-path-audio" placeholder="/Volumes/…/audio"></label><label class="field">기존 영상 경로 · 선택<input id="engine-path-ref_video" placeholder="/Volumes/…/기존영상.mp4"></label></div></details>
 </div>
 <div class="section-head"><div><div class="eyebrow">YOUR FOLEY WORKSPACE</div><h1>이번 컷의 폴리, 기존 작업으로.</h1><p>작업했던 영상과 AAF를 넣고, 새 영상의 발소리 초안을 만들어보세요.</p></div><span class="badge">FOOTSTEPS · LOCAL PROCESSING</span></div>
@@ -322,10 +323,10 @@ function evalRate(s){return s.includes('/')?s.split('/').map(Number).reduce((a,b
 const engine={available:false,mock:false,job:null,token:'',uploads:new Set(),canceling:false};
 const enginePanel=document.createElement('div');enginePanel.id='engine-output';enginePanel.hidden=true;
 $('result').before(enginePanel);
-const style=document.createElement('style');style.textContent=`.engine-connect{border:1px solid var(--line,#303037);padding:16px;margin-bottom:18px;border-radius:6px}.engine-connect>span{font-size:13px;color:#cdbd9e}.engine-connect details{margin-top:10px}.engine-checks{display:flex;gap:18px;flex-wrap:wrap;margin:14px 0}.engine-checks label{font-size:13px;display:flex;align-items:center;gap:7px}.engine-checks input{width:auto!important}#engine-settings{margin-bottom:20px}#engine-output{margin-top:20px}#engine-output button{margin:6px 8px 6px 0}#engine-output .review-person{display:grid;grid-template-columns:1fr 1fr;gap:10px;border-top:1px solid #303037;padding:12px 0}.engine-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:18px 0}.engine-summary strong{display:block;font-size:24px;color:#f5f5f6}.engine-summary span{font-size:12px;color:#aaa}#engine-status,#engine-output p{overflow-wrap:anywhere;word-break:keep-all}#engine-settings input{min-width:0}#engine-settings .settings{grid-template-columns:repeat(2,minmax(0,1fr))}@media(max-width:600px){#engine-settings .settings{grid-template-columns:1fr}.engine-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}`;document.head.append(style);
+const style=document.createElement('style');style.textContent=`.engine-connect{border:1px solid var(--line,#303037);padding:16px;margin-bottom:18px;border-radius:6px}.engine-connect>span{font-size:13px;color:#cdbd9e}.engine-connect details{margin-top:10px}.engine-checks{display:flex;gap:18px;flex-wrap:wrap;margin:14px 0}.engine-checks label{font-size:13px;display:flex;align-items:center;gap:7px}.engine-checks input{width:auto!important}#engine-settings{margin-bottom:20px}#engine-output{margin-top:20px}#engine-output button{margin:6px 8px 6px 0}#engine-output .review-person{display:grid;grid-template-columns:1fr 1fr;gap:10px;border-top:1px solid #303037;padding:12px 0}.engine-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:18px 0}.engine-summary strong{display:block;font-size:24px;color:#f5f5f6}.engine-summary span{font-size:12px;color:#aaa}#engine-status,#engine-output p{overflow-wrap:anywhere;word-break:keep-all}#engine-settings input{min-width:0}#engine-settings .settings{grid-template-columns:repeat(2,minmax(0,1fr))}@media(max-width:600px){#engine-settings .settings{grid-template-columns:1fr}.engine-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}`;style.textContent+=`.engine-jobs{display:flex;flex-direction:column;gap:8px;margin-top:10px}.engine-job{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:10px 12px;border:1px solid var(--line,#333);border-radius:8px}.engine-job-title{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.engine-job-status{font-size:13px;opacity:.75;white-space:nowrap}@media(max-width:600px){.engine-job{grid-template-columns:1fr auto}.engine-job-status{grid-column:1/-1;order:3}}`;document.head.append(style);
 function isServerMode(){return engine.available&&$('engine-mode').value==='server';}
 function engineModeChanged(){
-  $('engine-settings').hidden=!isServerMode();enginePanel.hidden=true;
+  $('engine-settings').hidden=!isServerMode();enginePanel.hidden=true;if(isServerMode())setTimeout(()=>loadJobs(),0);
   $('work').querySelector('.badge').textContent=isServerMode()?(engine.mock?'SERVER · CONNECTION TEST':'MAC STUDIO · ENGINE'):'FOOTSTEPS · LOCAL PROCESSING';
   $('work').querySelector('.subnote span:last-child').textContent=isServerMode()?'실행하면 선택한 자료를 엔진 서버로 전송합니다. 맥스튜디오 경로로 등록하면 파일을 다시 올리지 않아요.':'영상과 오디오는 브라우저 안에서 처리합니다. 최초 실행에는 분석 도구 다운로드를 위한 인터넷 연결이 필요해요.';
   $('run-btn').nextElementSibling.textContent=isServerMode()?'새 영상은 필수입니다. 기존 AAF·오디오·기존 영상은 선택해서 함께 보낼 수 있어요.':'첫 버전은 한 사람의 발소리를 분석합니다. 발이 가려진 장면이나 복잡한 편집은 검출이 어려울 수 있어요.';
@@ -377,6 +378,35 @@ async function showEngineResult(jid){
       const a=document.createElement('a');a.href=url.href;a.download=file.name;a.referrerPolicy='no-referrer';document.body.append(a);a.click();a.remove();
     }catch(e){error('input-error',e.message);}finally{b.disabled=false;}});}
 }
+async function watchJob(jid){
+  let reviewShown=false;
+  while(true){const status=await api(`/jobs/${jid}`,{signal:AbortSignal.timeout(10000)});engineProgress(status.percent,status.message,`${status.stage_index}/7 · ${(status.warnings||[]).join(' · ')}`);
+    if(status.status==='done'){await showEngineResult(jid);break;}
+    if(status.status==='failed'||status.status==='canceled')throw new Error(status.error||status.message);
+    if(status.status==='needs_review'&&!reviewShown){await reviewPeople(jid);reviewShown=true;}
+    if(status.status!=='needs_review')reviewShown=false;
+    await sleep(2000);
+  }
+  loadJobs();
+}
+const JOB_LABEL={created:'자료 기다림',queued:'대기 중',running:'진행 중',needs_review:'확인 필요',done:'완료',failed:'실패',canceled:'취소됨'};
+async function loadJobs(){
+  const box=$('engine-jobs');if(!box||!engine.available)return;
+  let jobs=[];try{jobs=await api('/jobs');}catch(e){box.textContent=e.message;return;}
+  box.replaceChildren();if(!jobs.length){box.textContent='아직 실행한 작업이 없어요.';return;}
+  for(const j of jobs.slice(0,30)){
+    const row=document.createElement('div');row.className='engine-job';
+    const t=document.createElement('span');t.className='engine-job-title';t.textContent=j.title;
+    const st=document.createElement('span');st.className='engine-job-status';const when=new Date(j.created_at);
+    st.textContent=`${JOB_LABEL[j.status]||j.status}${j.status==='running'||j.status==='queued'?` · ${Math.round(j.percent||0)}%`:''} · ${when.toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}${j.mock?' · 연결 테스트':''}`;
+    row.append(t,st);
+    const act=document.createElement('button');act.type='button';act.className='secondary';
+    if(j.status==='done'){act.textContent='결과 받기';act.onclick=async()=>{error('input-error','');try{engine.job=j.job_id;await showEngineResult(j.job_id);}catch(e){error('input-error',e.message);}};}
+    else if(['queued','running','needs_review'].includes(j.status)){act.textContent='진행 보기';act.onclick=async()=>{if(state.busy)return;busy(true);error('input-error','');engine.job=j.job_id;engine.canceling=false;outputMessage('엔진 작업 중','맥스튜디오에서 처리하고 있어요.');engineButton('작업 취소',cancelEngine);try{await watchJob(j.job_id);}catch(e){$('progress').hidden=true;outputMessage('작업 상태를 확인해주세요.',e.message);}finally{busy(false);}};}
+    else{act.textContent=j.status==='failed'?'실패 이유':'자세히';act.onclick=()=>outputMessage(`${j.title} · ${JOB_LABEL[j.status]||j.status}`,j.error||j.message||'');}
+    row.append(act);box.append(row);
+  }
+}
 const browserRun=$('run-btn').onclick;
 $('run-btn').onclick=async()=>{
   if(!isServerMode()){document.querySelectorAll('#progress .stage').forEach(el=>el.hidden=false);enginePanel.hidden=true;return browserRun();}
@@ -393,19 +423,13 @@ $('run-btn').onclick=async()=>{
     for(const [kind,path] of Object.entries(paths)){if(engine.canceling)throw new Error('작업을 취소했어요.');if(path)await api(`/jobs/${job.job_id}/files/link`,{method:'POST',body:{kind,path}});}
     for(let i=0;i<uploads.length;i++){if(engine.canceling)throw new Error('작업을 취소했어요.');await uploadToEngine(job.job_id,...uploads[i],i+1,uploads.length);}
     if(engine.canceling)throw new Error('작업을 취소했어요.');await api(`/jobs/${job.job_id}/start`,{method:'POST'});
-    let reviewShown=false;
-    while(true){const status=await api(`/jobs/${job.job_id}`,{signal:AbortSignal.timeout(10000)});engineProgress(status.percent,status.message,`${status.stage_index}/7 · ${(status.warnings||[]).join(' · ')}`);
-      if(status.status==='done'){await showEngineResult(job.job_id);break;}
-      if(status.status==='failed'||status.status==='canceled')throw new Error(status.error||status.message);
-      if(status.status==='needs_review'&&!reviewShown){await reviewPeople(job.job_id);reviewShown=true;}
-      if(status.status!=='needs_review')reviewShown=false;
-      await sleep(2000);
-    }
+    await watchJob(job.job_id);
   }catch(e){$('progress').hidden=true;outputMessage('작업 상태를 확인해주세요.',e.message||'서버 연결을 확인해주세요.');error('input-error',e.message||'서버 연결을 확인해주세요.');if(engine.job)engineButton('서버 작업 취소',cancelEngine);}
   finally{busy(false);$('engine-connect').disabled=false;}
 };
 const originalDemo=$('demo-btn').onclick;$('demo-btn').onclick=()=>{enginePanel.hidden=true;return originalDemo();};
 $('engine-token').addEventListener('keydown',e=>{if(e.key==='Enter')checkEngine(true);});
+$('engine-jobs-refresh').onclick=()=>loadJobs();
 checkEngine(true);
 window.foleyLab={state,inspect,exportAAF,parseTimecode,onsets,buildCandidates,detectSteps,python,wav24};
 </script>
