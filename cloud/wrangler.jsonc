@@ -1,0 +1,16 @@
+{
+  "name": "autof-remote-api",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-11-03",
+  "workers_dev": true,
+  "vars": {
+    "APP_URL": "https://junova-foley-mvp.vercel.app/",
+    "ALLOWED_ORIGINS": "https://junova-foley-mvp.vercel.app,http://127.0.0.1:8765",
+    "MAX_VIDEO_BYTES": "5000000000",
+    "MAX_RESULT_BYTES": "4000000000"
+  },
+  "r2_buckets": [{"binding":"MEDIA","bucket_name":"autof-remote-media"}],
+  "d1_databases": [{"binding":"DB","database_name":"autof-remote-jobs","database_id":"de052b61-3bb8-48fc-938d-fd1083f8f2ef","migrations_dir":"migrations"}],
+  "triggers": {"crons":["*/15 * * * *"]},
+  "observability": {"enabled":false}
+}
