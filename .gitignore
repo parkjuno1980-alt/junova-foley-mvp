@@ -24,3 +24,8 @@ public/
 __pycache__/
 .pytest_cache/
 JUNOVA_jobs/
+cloud/node_modules/
+cloud/.wrangler/
+.dev.vars
+.dev.vars.*
+!.dev.vars.example

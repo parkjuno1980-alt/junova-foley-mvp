@@ -443,6 +443,81 @@ $('demo-btn').onclick=async()=>{if(state.busy)return;busy(true);resetResult();en
 $('engine-token').addEventListener('keydown',e=>{if(e.key==='Enter')checkEngine(true);});
 $('engine-jobs-refresh').onclick=()=>loadJobs();
 checkEngine(true);
+// Public endpoint only. Invitation and worker secrets are never committed here.
+const remoteServiceConfig={apiBase:'https://autof-remote-api.autof-remote-api.workers.dev'};
+const isLoopback=['127.0.0.1','localhost'].includes(location.hostname);
+const localTestEndpoint=isLoopback?new URLSearchParams(location.search).get('remote-test'):'';
+const remoteBase=(localTestEndpoint||remoteServiceConfig.apiBase||'').replace(/\/$/,'');
+const remoteInvite=new URLSearchParams(location.hash.slice(1)).get('invite')||'';
+const remote={base:remoteBase,token:remoteInvite,enabled:!!remoteBase&&(!isLoopback||!!remoteInvite||!!localTestEndpoint),ready:false,pending:null,xhr:null,canceling:false};
+const remoteNotice=document.createElement('div');remoteNotice.className='aaf-index';remoteNotice.hidden=true;remoteNotice.setAttribute('role','status');$('work').querySelector('.section-head').before(remoteNotice);
+const remoteHistory=document.createElement('details');remoteHistory.hidden=true;const remoteHistoryTitle=document.createElement('summary');remoteHistoryTitle.textContent='내 지난 원격 작업';const remoteHistoryList=document.createElement('div');remoteHistoryList.className='engine-jobs';remoteHistory.append(remoteHistoryTitle,remoteHistoryList);enginePanel.after(remoteHistory);
+function remoteLayout(){
+ if(!remote.enabled)return;
+ $('reference-details').hidden=true;
+ const engineDetails=$('engine-connect').closest('.engine-connect')?.parentElement;if(engineDetails?.tagName==='DETAILS')engineDetails.hidden=true;
+ for(const field of ['source-offset','analysis-start','analysis-length','sample-length'])$(field).closest('label').hidden=true;
+ $('work').querySelector('.badge').textContent='STUDIO LIBRARY · REMOTE';
+ $('work').querySelector('.subnote span:last-child').textContent='새 영상만 전송합니다. 스튜디오 라이브러리는 맥스튜디오에 유지되며, 입력 영상과 결과는 24시간 후 서버에서 정리됩니다.';
+ $('run-btn').nextElementSibling.textContent='영상은 최대 5GB, 결과 파일은 합계 4GB까지입니다. 스튜디오의 소리로 초안을 만든 뒤 AAF로 받습니다.';
+ const note=document.querySelector('.hero-upload>.helper');if(note)note.textContent='초대 링크로 시작하세요. 새 영상만 등록하면 스튜디오의 라이브러리로 분석합니다. 파일은 24시간 보관합니다.';
+ remoteNotice.hidden=false;
+}
+const previousModeChanged=engineModeChanged;engineModeChanged=()=>remote.enabled?remoteLayout():previousModeChanged();
+async function remoteCall(path,{method='GET',body,timeout=20000}={}){
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeout);
+ try{const h={Authorization:'Bearer '+remote.token};if(body)h['Content-Type']='application/json';const r=await fetch(remote.base+'/v1'+path,{method,headers:h,body:body?JSON.stringify(body):undefined,signal:controller.signal,credentials:'omit'});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error?.message||'작업 서버 응답을 확인해주세요.');return data;}catch(e){if(e.name==='AbortError')throw new Error('작업 서버 응답이 늦어요. 연결을 확인한 뒤 다시 시도해주세요.');throw e;}finally{clearTimeout(timer);}
+}
+async function videoFingerprint(file){const data=new Uint8Array(await new Blob([file.slice(0,524288),file.slice(Math.max(0,file.size-524288)),String(file.size)]).arrayBuffer());return [...new Uint8Array(await crypto.subtle.digest('SHA-256',data))].map(x=>x.toString(16).padStart(2,'0')).join('');}
+function remotePart(path,blob,number,total){return new Promise((resolve,reject)=>{
+ const x=new XMLHttpRequest();remote.xhr=x;x.open('PUT',remote.base+'/v1'+path);x.setRequestHeader('Authorization','Bearer '+remote.token);x.setRequestHeader('Content-Type','application/octet-stream');x.timeout=180000;
+ x.upload.onprogress=e=>engineProgress(Math.round(((number-1)+(e.lengthComputable?e.loaded/e.total:0))/total*100),'새 영상을 올리고 있어요.',`${number}/${total} 조각 · 연결이 끊기면 같은 원본 파일로 다시 이어 올릴 수 있습니다.`);
+ x.onload=()=>{remote.xhr=null;if(x.status===200)resolve();else{let data;try{data=JSON.parse(x.responseText);}catch{}reject(new Error(data?.error?.message||'업로드가 중단됐어요. 다시 시작하면 이어 올립니다.'));}};
+ x.onerror=x.ontimeout=()=>{remote.xhr=null;reject(new Error('업로드 연결이 끊겼어요. 같은 원본 파일로 다시 시도해주세요.'));};x.onabort=()=>reject(new Error('업로드를 취소했어요.'));x.send(blob);
+});}
+async function cancelRemote(){remote.canceling=true;remote.xhr?.abort();if(remote.pending)try{await remoteCall('/jobs/'+remote.pending.job_id+'/cancel',{method:'POST'});}catch(e){error('input-error',e.message);}}
+async function remoteResult(jid){
+ const result=await remoteCall('/jobs/'+jid+'/result');$('progress').hidden=true;$('empty').hidden=true;$('result').hidden=true;
+ outputMessage(result.test?'연결 테스트가 완료됐습니다.':'스튜디오의 폴리 초안이 준비됐습니다.',result.test?'합성 클릭으로 만든 테스트 결과입니다. 실제 영상 분석 결과가 아닙니다.':'멀티트랙 AAF를 받아 Pro Tools에서 싱크와 누락을 확인한 뒤 이어서 편집하세요. 결과는 작업 등록 후 24시간 동안 보관합니다.');
+ const stats=document.createElement('div');stats.className='engine-summary';for(const [key,label] of [['foot_steps','발소리'],['foot_candidates','발소리 후보'],['move_clips','무브'],['spots','스팟']]){const item=document.createElement('div'),n=document.createElement('strong'),l=document.createElement('span');n.textContent=(result.summary[key]||0).toLocaleString();l.textContent=label;item.append(n,l);stats.append(item);}enginePanel.append(stats);
+ for(const file of result.files)engineButton(file.kind==='aaf'?'멀티트랙 AAF 받기 ↓':file.name+' ↓',async e=>{const b=e.currentTarget;b.disabled=true;try{const fresh=await remoteCall('/jobs/'+jid+'/result'),found=fresh.files.find(f=>f.name===file.name);if(!found)throw new Error('결과 파일을 찾지 못했어요.');const url=new URL(found.url,remote.base);if(url.origin!==new URL(remote.base).origin)throw new Error('다운로드 주소를 확인해주세요.');const a=document.createElement('a');a.href=url.href;a.download=file.name;a.referrerPolicy='no-referrer';document.body.append(a);a.click();a.remove();showDownloadLocation(enginePanel,file.name);}catch(e){error('input-error',e.message);}finally{b.disabled=false;}});
+}
+async function watchRemote(jid){
+ while(true){if(remote.canceling)throw new Error('작업을 취소했어요.');const j=await remoteCall('/jobs/'+jid);engineProgress(j.percent,j.message||'스튜디오 서버를 기다리고 있어요.',j.engine_mode==='mock'?'연결 테스트용 합성 결과입니다.':'영상 분석 → 폴리 배치 → AAF 작성');
+  if(j.status==='done'){await remoteResult(jid);return;}if(['failed','canceled','purged'].includes(j.status))throw new Error(j.error||j.message||'작업을 마치지 못했어요.');await sleep(3000);
+ }
+}
+async function loadRemoteJobs(){
+ if(!remote.ready)return;const jobs=await remoteCall('/jobs');remoteHistory.hidden=!jobs.length;remoteHistoryList.replaceChildren();
+ for(const j of jobs){const row=document.createElement('div');row.className='engine-job';const title=document.createElement('span'),status=document.createElement('span'),b=document.createElement('button');title.className='engine-job-title';title.textContent=j.title;status.className='engine-job-status';status.textContent=({uploading:'업로드 중',queued:'서버 대기',running:'분석 중',uploading_result:'결과 전송 중',needs_review:'스튜디오 확인 중',done:'완료',failed:'실패',canceled:'취소됨',purged:'보관 만료'})[j.status]||j.status;b.type='button';b.className='secondary';b.textContent=j.status==='done'?'결과 받기':j.status==='uploading'?'업로드 이어가기':'상태 확인';
+  b.onclick=async()=>{if(state.busy)return;error('input-error','');try{if(j.status==='done'){await remoteResult(j.job_id);return;}const full=await remoteCall('/jobs/'+j.job_id);if(j.status==='uploading'){const f=full.files.find(f=>f.kind==='input');remote.pending={job_id:j.job_id,file:f,part_bytes:16*1024*1024,fingerprint:full.config.fingerprint};error('input-error','같은 원본 영상을 선택한 뒤 영상 분석 시작하기를 누르면 업로드를 이어갑니다.');$('change-video').click();return;}if(['failed','canceled','purged'].includes(j.status)){outputMessage('작업 상태',full.error||full.message);return;}remote.pending={job_id:j.job_id};remote.canceling=false;busy(true);outputMessage('스튜디오에서 작업 중입니다.','창을 다시 열어도 초대 링크로 이 작업을 확인할 수 있습니다.');engineButton('작업 취소',cancelRemote);await watchRemote(j.job_id);}catch(e){error('input-error',e.message);}finally{busy(false);}};
+  row.append(title,status,b);remoteHistoryList.append(row);
+ }
+}
+const legacyRun=$('run-btn').onclick;
+$('run-btn').onclick=async()=>{
+ if(!remote.enabled)return legacyRun();if(state.busy)return;error('input-error','');if(!remote.ready){error('input-error','유효한 초대 링크로 접속해주세요.');return;}
+ const file=$('new-file').files[0];if(!file){error('input-error','첫 화면에서 새 영상을 등록해주세요.');return;}if(file.size>5e9){error('input-error','5GB 이하 영상을 선택해주세요.');return;}
+ try{parseTimecode();}catch(e){error('input-error',e.message);return;}
+ busy(true);resetResult();remote.canceling=false;engineProgress(0,'영상 전송을 준비하고 있어요.');
+ try{const fingerprint=await videoFingerprint(file);let j=remote.pending;
+  if(j?.file&&(j.file.size!==file.size||j.fingerprint!==fingerprint))throw new Error('업로드를 이어가려면 처음 등록한 원본 영상을 선택해주세요.');
+  if(j?.job_id){const previous=await remoteCall('/jobs/'+j.job_id);if(previous.status!=='uploading'){if(['queued','running','needs_review','uploading_result','done'].includes(previous.status)&&(!j.fingerprint||j.fingerprint===fingerprint)){await watchRemote(j.job_id);return;}remote.pending=null;j=null;}}
+  if(!j?.file){j=await remoteCall('/jobs',{method:'POST',body:{title:file.name,name:file.name,size:file.size,fingerprint,fps:evalRate($('fps').value==='29.97DF'?'30000/1001':$('fps').value),start_tc:$('new-tc').value}});j.fingerprint=fingerprint;remote.pending=j;}
+  outputMessage('새 영상을 스튜디오로 보내고 있어요.','스튜디오의 기존 소리와 모델은 맥스튜디오에서 사용합니다.');engineButton('작업 취소',cancelRemote);
+  const parts=await remoteCall(`/jobs/${j.job_id}/upload/${j.file.id}/parts`),saved=new Set(parts.map(p=>p.number)),total=Math.ceil(file.size/j.part_bytes);
+  for(let n=1;n<=total;n++){if(remote.canceling)throw new Error('작업을 취소했어요.');if(saved.has(n))continue;await remotePart(`/jobs/${j.job_id}/upload/${j.file.id}/parts/${n}`,file.slice((n-1)*j.part_bytes,n*j.part_bytes),n,total);}
+  if(remote.canceling)throw new Error('작업을 취소했어요.');await remoteCall(`/jobs/${j.job_id}/upload/${j.file.id}/complete`,{method:'POST',body:{}});remote.pending={job_id:j.job_id,fingerprint};await watchRemote(j.job_id);remote.pending=null;
+ }catch(e){$('progress').hidden=true;outputMessage('작업 상태를 확인해주세요.',e.message);error('input-error',e.message);if(remote.pending)engineButton('작업 취소',cancelRemote);}
+ finally{busy(false);loadRemoteJobs().catch(()=>{});}
+};
+async function initRemote(){
+ if(!remote.enabled)return;remoteLayout();remoteNotice.textContent='초대 권한을 확인하고 있습니다…';
+ if(!/^[a-f0-9]{64}$/i.test(remote.token)){remoteNotice.textContent='초대 링크로 접속해주세요. 스튜디오에서 받은 링크로 새 영상 작업을 시작할 수 있습니다.';return;}
+ try{const session=await remoteCall('/session');remote.ready=true;remoteNotice.textContent=session.label+' · 초대 확인 완료 · 새 영상만 등록하면 됩니다.';await loadRemoteJobs();}catch(e){remoteNotice.textContent=e.message;}
+}
+initRemote();
+
 window.foleyLab={state,inspect,exportAAF,parseTimecode,onsets,buildCandidates,detectSteps,python,wav24};
 </script>
 </body>
